@@ -34,7 +34,7 @@ class DiabetesPredictor:
             self.download_model()
 
         df = pd.read_json(json.dumps(prediction_input), orient='records')
-        df = df[['ntp', 'age', 'bmi', 'dbp', 'dpf', 'pgc', 'si', 'tsft']]
+        # df = df[['ntp', 'age', 'bmi', 'dbp', 'dpf', 'pgc', 'si', 'tsft']]
         y_pred = self.model.predict(df)
         print(y_pred)
         print(y_pred[0])
