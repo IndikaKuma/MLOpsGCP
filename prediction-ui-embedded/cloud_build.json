@@ -1,0 +1,58 @@
+{
+  "steps": [
+    {
+      "name": "gcr.io/cloud-builders/gsutil",
+      "args": [
+        "cp",
+        "gs://adamodels/model.h5",
+        "./lab3/livelab/prediction-ui-embedded-gcs"
+      ]
+    },
+    {
+      "name": "python:3.10.8-slim-buster",
+      "entrypoint": "/bin/sh",
+      "args": [
+        "-c",
+        "cd ./lab3/livelab/prediction-ui-embedded-gcs && python -m venv .myenv && . .myenv/bin/activate && pip install -r requirements_dev.txt && python -m pytest --junitxml=${SHORT_SHA}_test_log.xml",
+        "--user"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "build",
+        "-t",
+        "gcr.io/$PROJECT_ID/prediction-ui-embedded-gcs:0.0.1",
+        "./lab3/livelab/prediction-ui-embedded-gcs"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "push",
+        "gcr.io/$PROJECT_ID/prediction-ui-embedded-gcs:0.0.1"
+      ]
+    },
+    {
+      "name": "gcr.io/google.com/cloudsdktool/cloud-sdk",
+      "entrypoint": "gcloud",
+      "args": [
+        "run",
+        "deploy",
+        "prediction-service",
+        "--image",
+        "gcr.io/$PROJECT_ID/prediction-ui-embedded-gcs:0.0.1",
+        "--region",
+        "us-central1",
+        "--platform",
+        "managed",
+        "--allow-unauthenticated",
+        "--update-env-vars",
+        "PROJECT_ID=$PROJECT_ID,MODEL_NAME=model.h5",
+        "--no-cpu-throttling",
+        "--memory",
+        "4 Gi"
+      ]
+    }
+  ]
+}

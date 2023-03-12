@@ -1,0 +1,61 @@
+{
+  "steps": [
+    {
+      "name": "gcr.io/cloud-builders/gsutil",
+      "args": [
+        "cp",
+        "gs://$_MODEL_REPO/model.pkl",
+        "./prediction-ui-embedded"
+      ]
+    },
+    {
+      "name": "python:3.10.8-slim-buster",
+      "entrypoint": "/bin/sh",
+      "args": [
+        "-c",
+        "cd ./prediction-ui-embedded && python -m venv .myenv && . .myenv/bin/activate && pip install -r requirements_dev.txt && python -m pytest --junitxml=${SHORT_SHA}_test_log.xml",
+        "--user"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "build",
+        "-t",
+        "gcr.io/$PROJECT_ID/prediction-ui-embedded:0.0.1",
+        "./prediction-ui-embedded"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "push",
+        "gcr.io/$PROJECT_ID/prediction-ui-embedded:0.0.1"
+      ]
+    },
+    {
+      "name": "gcr.io/google.com/cloudsdktool/cloud-sdk",
+      "entrypoint": "gcloud",
+      "args": [
+        "run",
+        "deploy",
+        "prediction-ui-embedded",
+        "--image",
+        "gcr.io/$PROJECT_ID/prediction-ui-embedded:0.0.1",
+        "--region",
+        "us-central1",
+        "--platform",
+        "managed",
+        "--allow-unauthenticated",
+        "--update-env-vars",
+        "PROJECT_ID=$PROJECT_ID,MODEL_NAME=model.pkl",
+        "--no-cpu-throttling",
+        "--memory",
+        "4 Gi"
+      ]
+    }
+  ],
+  "substitutions": {
+    "_MODEL_REPO": "mlops_models"
+  }
+}
