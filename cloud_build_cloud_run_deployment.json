@@ -56,7 +56,7 @@
         "managed",
         "--allow-unauthenticated",
         "--update-env-vars",
-        "PORT=5000,PROJECT_ID=$PROJECT_ID,MODEL_REPO=$_MODEL_REPO,MODEL_NAME=model.pkl",
+        "PROJECT_ID=$PROJECT_ID,MODEL_REPO=$_MODEL_REPO,MODEL_NAME=model.pkl",
         "--no-cpu-throttling",
         "--memory",
         "4 Gi"
@@ -77,7 +77,7 @@
         "managed",
         "--allow-unauthenticated",
         "--update-env-vars",
-        "PORT=5000,PREDICTOR_API=https://prediction-api-komvtsziza-uc.a.run.app:5000/diabetes_predictor",
+        "PREDICTOR_API=https://prediction-api-komvtsziza-uc.a.run.app/diabetes_predictor",
         "--no-cpu-throttling",
         "--memory",
         "4 Gi"
