@@ -1,0 +1,8 @@
+{
+  "project_id": "your projec id",
+  "region": "region",
+  "data_bucket": "your data bucket",
+  "dataset_uri": "e.g., gs://mlops_datas/training_set.csv",
+  "model_repo": "your project model repo",
+  "thresholds_dict_str": "{\"roc\":0.8}"
+}

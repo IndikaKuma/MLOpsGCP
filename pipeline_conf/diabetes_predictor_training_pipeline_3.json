@@ -1,0 +1,515 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-condition-approve-model-1": {
+        "dag": {
+          "tasks": {
+            "upload-model-to-gcs": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-upload-model-to-gcs"
+              },
+              "inputs": {
+                "artifacts": {
+                  "model": {
+                    "componentInputArtifact": "pipelineparam--train-lr-model"
+                  }
+                },
+                "parameters": {
+                  "model_repo": {
+                    "componentInputParameter": "pipelineparam--model_repo"
+                  },
+                  "project_id": {
+                    "componentInputParameter": "pipelineparam--project_id"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "upload-model-to-gcs"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "artifacts": {
+            "pipelineparam--train-lr-model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "pipelineparam--lr-model-evaluation-approval": {
+              "type": "STRING"
+            },
+            "pipelineparam--model_repo": {
+              "type": "STRING"
+            },
+            "pipelineparam--project_id": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-importer": {
+        "executorLabel": "exec-importer",
+        "inputDefinitions": {
+          "parameters": {
+            "uri": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "artifact": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-lr-model-evaluation": {
+        "executorLabel": "exec-lr-model-evaluation",
+        "inputDefinitions": {
+          "artifacts": {
+            "model_lr": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "test_set": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "thresholds_dict_str": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "kpi": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "metrics": {
+              "artifactType": {
+                "schemaTitle": "system.ClassificationMetrics",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "approval": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-train-lr": {
+        "executorLabel": "exec-train-lr",
+        "inputDefinitions": {
+          "artifacts": {
+            "features": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-train-test-split": {
+        "executorLabel": "exec-train-test-split",
+        "inputDefinitions": {
+          "artifacts": {
+            "dataset": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "dataset_test": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "dataset_train": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-upload-model-to-gcs": {
+        "executorLabel": "exec-upload-model-to-gcs",
+        "inputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "model_repo": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-importer": {
+          "importer": {
+            "artifactUri": {
+              "runtimeParameter": "uri"
+            },
+            "typeSchema": {
+              "schemaTitle": "system.Dataset",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        },
+        "exec-lr-model-evaluation": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "lr_model_evaluation"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'google-cloud-aiplatform' 'kfp==1.8.19' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef lr_model_evaluation(\n    project_id: str,\n    region:str,\n    test_set:  Input[Dataset],\n    model_lr: Input[Model],\n    thresholds_dict_str: str,\n    metrics: Output[ClassificationMetrics],\n    kpi: Output[Metrics]\n) -> NamedTuple(\"output\", [(\"approval\", str)]):\n\n    import pandas as pd\n    import logging     \n    from sklearn.metrics import roc_curve, confusion_matrix, accuracy_score\n    import json\n    import typing\n    import pickle\n    from google.cloud import aiplatform\n    import sklearn.metrics as skl_metrics\n    from datetime import datetime\n    import random\n    idn = random.randint(0,1000)\n\n    def threshold_check(val1, val2):\n        cond = \"false\"\n        if val1 >= val2 :\n            cond = \"true\"\n        return cond\n\n    data = pd.read_csv(test_set.path+\".csv\")\n\n    #Loading the saved model\n    m_filename = model_lr.path + \".pkl\"\n    model = pickle.load(open(m_filename, 'rb'))\n\n    y_test = data.drop(columns=[\"class\"])\n    y_target = data['class']\n    y_pred = model.predict(y_test)    \n\n    y_scores =  model.predict_proba(data.drop(columns=[\"class\"]))[:, 1]\n    fpr, tpr, thresholds = roc_curve(\n         y_true=data['class'].to_numpy(), y_score=y_scores, pos_label=True\n    )\n    metrics.log_roc_curve(fpr.tolist(), tpr.tolist(), thresholds.tolist())  \n\n    metrics.log_confusion_matrix(\n       [\"False\", \"True\"],\n       confusion_matrix(\n           data['class'], y_pred\n       ).tolist(), \n    ) \n\n    accuracy = accuracy_score(data['class'], y_pred.round())\n    thresholds_dict  = json.loads(thresholds_dict_str)\n    model_lr.metadata[\"accuracy\"] = float(accuracy)\n    kpi.log_metric(\"accuracy\", float(accuracy))\n    approval = threshold_check(float(accuracy), int(thresholds_dict['roc']))\n\n    # How to start an expriment - just for demonstration \n    aiplatform.init(\n       project=project_id,\n       location=region,\n       experiment=\"lrdiabetes\"\n    )\n\n    run_id = f\"run-{idn}-{datetime.now().strftime('%Y%m%d%H%M%S')}\"\n    aiplatform.start_run(run_id)\n\n    training_metrics = {\n        'model_accuracy': skl_metrics.accuracy_score(y_target, y_pred),\n        'model_precision': skl_metrics.precision_score(y_target, y_pred, average='macro'),\n        'model_recall': skl_metrics.recall_score(y_target, y_pred, average='macro'),\n        'model_logloss': skl_metrics.log_loss(y_target, y_pred),\n        'model_auc_roc': skl_metrics.roc_auc_score(y_target, y_pred)\n    }\n    aiplatform.log_metrics(training_metrics)\n\n    return (approval,)\n\n"
+            ],
+            "image": "python:3.10.7-slim"
+          }
+        },
+        "exec-train-lr": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "train_lr"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'kfp==1.8.19' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef train_lr (features: Input[Dataset], model: Output[Model]):\n    '''train a LogisticRegression with default parameters'''\n    import pandas as pd\n    from sklearn.linear_model import LogisticRegression \n    import pickle \n\n    data = pd.read_csv(features.path+\".csv\")\n    model_lr = LogisticRegression()\n    model_lr.fit(data.drop('class',axis=1), data['class'])\n    model.metadata[\"framework\"] = \"LR\"\n    file_name = model.path + f\".pkl\"\n    with open(file_name, 'wb') as file:  \n        pickle.dump(model_lr, file)   \n\n"
+            ],
+            "image": "python:3.10.7-slim"
+          }
+        },
+        "exec-train-test-split": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "train_test_split"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'scikit-learn' 'kfp==1.8.19' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef train_test_split(dataset: Input[Dataset], dataset_train: Output[Dataset], dataset_test: Output[Dataset]):\n    '''train_test_split'''\n    import pandas as pd\n    import logging \n    import sys\n    from sklearn.model_selection import train_test_split as tts\n\n    logging.basicConfig(stream=sys.stdout, level=logging.INFO) \n\n    alldata = pd.read_csv(dataset.path, index_col=None, squeeze=True)\n    train, test = tts(alldata, test_size=0.3)\n    train.to_csv(dataset_train.path + \".csv\" , index=False, encoding='utf-8-sig')\n    test.to_csv(dataset_test.path + \".csv\" , index=False, encoding='utf-8-sig')\n\n"
+            ],
+            "image": "python:3.10.7-slim"
+          }
+        },
+        "exec-upload-model-to-gcs": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "upload_model_to_gcs"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'google-cloud-storage' 'kfp==1.8.19' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef upload_model_to_gcs(project_id: str, model_repo: str, model: Input[Model]):\n    '''upload model to gsc'''\n    from google.cloud import storage   \n    import logging \n    import sys\n\n    logging.basicConfig(stream=sys.stdout, level=logging.INFO)    \n\n    # upload the model to GCS\n    client = storage.Client(project=project_id)\n    bucket = client.get_bucket(model_repo)\n    blob = bucket.blob('model.pkl') \n    blob.upload_from_filename(model.path + '.pkl')   \n\n\n    print(\"Saved the model to GCP bucket : \" + model_repo)\n\n"
+            ],
+            "image": "python:3.10.7-slim"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "diabetes-prdictor-training-pipeline-3"
+    },
+    "root": {
+      "dag": {
+        "outputs": {
+          "artifacts": {
+            "lr-model-evaluation-kpi": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "kpi",
+                  "producerSubtask": "lr-model-evaluation"
+                }
+              ]
+            },
+            "lr-model-evaluation-metrics": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "metrics",
+                  "producerSubtask": "lr-model-evaluation"
+                }
+              ]
+            }
+          }
+        },
+        "tasks": {
+          "condition-approve-model-1": {
+            "componentRef": {
+              "name": "comp-condition-approve-model-1"
+            },
+            "dependentTasks": [
+              "lr-model-evaluation",
+              "train-lr"
+            ],
+            "inputs": {
+              "artifacts": {
+                "pipelineparam--train-lr-model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "train-lr"
+                  }
+                }
+              },
+              "parameters": {
+                "pipelineparam--lr-model-evaluation-approval": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "approval",
+                    "producerTask": "lr-model-evaluation"
+                  }
+                },
+                "pipelineparam--model_repo": {
+                  "componentInputParameter": "model_repo"
+                },
+                "pipelineparam--project_id": {
+                  "componentInputParameter": "project_id"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "condition-approve-model-1"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--lr-model-evaluation-approval'].string_value == 'true'"
+            }
+          },
+          "importer": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-importer"
+            },
+            "inputs": {
+              "parameters": {
+                "uri": {
+                  "componentInputParameter": "dataset_uri"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "importer"
+            }
+          },
+          "lr-model-evaluation": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-lr-model-evaluation"
+            },
+            "dependentTasks": [
+              "train-lr",
+              "train-test-split"
+            ],
+            "inputs": {
+              "artifacts": {
+                "model_lr": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "train-lr"
+                  }
+                },
+                "test_set": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "dataset_test",
+                    "producerTask": "train-test-split"
+                  }
+                }
+              },
+              "parameters": {
+                "project_id": {
+                  "componentInputParameter": "project_id"
+                },
+                "region": {
+                  "componentInputParameter": "region"
+                },
+                "thresholds_dict_str": {
+                  "componentInputParameter": "thresholds_dict_str"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "lr-model-evaluation"
+            }
+          },
+          "train-lr": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-train-lr"
+            },
+            "dependentTasks": [
+              "train-test-split"
+            ],
+            "inputs": {
+              "artifacts": {
+                "features": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "dataset_train",
+                    "producerTask": "train-test-split"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "train-lr"
+            }
+          },
+          "train-test-split": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-train-test-split"
+            },
+            "dependentTasks": [
+              "importer"
+            ],
+            "inputs": {
+              "artifacts": {
+                "dataset": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "artifact",
+                    "producerTask": "importer"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "train-test-split"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "data_bucket": {
+            "type": "STRING"
+          },
+          "dataset_uri": {
+            "type": "STRING"
+          },
+          "model_repo": {
+            "type": "STRING"
+          },
+          "project_id": {
+            "type": "STRING"
+          },
+          "region": {
+            "type": "STRING"
+          },
+          "thresholds_dict_str": {
+            "type": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "lr-model-evaluation-kpi": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          },
+          "lr-model-evaluation-metrics": {
+            "artifactType": {
+              "schemaTitle": "system.ClassificationMetrics",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.19"
+  },
+  "runtimeConfig": {}
+}
